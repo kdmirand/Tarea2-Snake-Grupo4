@@ -30,28 +30,28 @@ unsigned char SECUENCIA_SNAKE[TAMANO_SNAKE] = {
   0x00, 0x7E, 0x52, 0x52, 0x52, 0x52, 0x00, 0x00, // E
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  // ESPACIO
 };
-//Areglo para mostrar la palabra "DIFICULTAD" en la pantalla de selección de dificultad
-unsigned char texto_dificultad[88]  ={
-    0x00, 0x7E,	0x7E, 0x42,	0x42, 0x7E,	0x3C, 0x00, // D
-    0x00, 0x42,	0x42, 0x7E,	0x7E, 0x42,	0x42, 0x00, // I
-    0x00, 0x7E,	0x7E, 0x12,	0x12, 0x02,	0x02, 0x00, // F
-    0x00, 0x42,	0x42, 0x7E,	0x7E, 0x42,	0x42, 0x00, // I
-    0x00, 0x3C,	0x7E, 0x42,	0x42, 0x42,	0x24, 0x00, // C
-    0x00, 0x3E,	0x7E, 0x40,	0x40, 0x7E,	0x3E, 0x00, // U
-    0x00, 0x7E,	0x7E, 0x40,	0x40, 0x40,	0x40, 0x00, // L
-    0x00, 0x02,	0x02, 0x7E,	0x7E, 0x02,	0x02, 0x00, // T
-    0x00, 0x7C,	0x7E, 0x12,	0x12, 0x7E,	0x7C, 0x00, // A
-    0x00, 0x7E,	0x7E, 0x42,	0x42, 0x7E,	0x3C, 0x00, // D
+
+// Arreglo para mostrar la palabra "DIFICULTAD" en la pantalla de selección de dificultad
+unsigned char texto_dificultad[88] = {
+    0x00, 0x7E,    0x7E, 0x42,    0x42, 0x7E,    0x3C, 0x00, // D
+    0x00, 0x42,    0x42, 0x7E,    0x7E, 0x42,    0x42, 0x00, // I
+    0x00, 0x7E,    0x7E, 0x12,    0x12, 0x02,    0x02, 0x00, // F
+    0x00, 0x42,    0x42, 0x7E,    0x7E, 0x42,    0x42, 0x00, // I
+    0x00, 0x3C,    0x7E, 0x42,    0x42, 0x42,    0x24, 0x00, // C
+    0x00, 0x3E,    0x7E, 0x40,    0x40, 0x7E,    0x3E, 0x00, // U
+    0x00, 0x7E,    0x7E, 0x40,    0x40, 0x40,    0x40, 0x00, // L
+    0x00, 0x02,    0x02, 0x7E,    0x7E, 0x02,    0x02, 0x00, // T
+    0x00, 0x7C,    0x7E, 0x12,    0x12, 0x7E,    0x7C, 0x00, // A
+    0x00, 0x7E,    0x7E, 0x42,    0x42, 0x7E,    0x3C, 0x00, // D
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  // ESPACIO
 };
 
 // ARREGLO DIFICULTADES
 unsigned char difultades[tamnio_dificultades] = {
-  0x00,	0x40,	0x44,	0x7E,	0x7E,	0x40,	0x40,	0x00, // FACIL(1)
-  0x00,	0x66,	0x76,	0x7E,	0x5E,	0x4C,	0x00,	0x00, // NORMAL(2)
-  0x00,	0x5A,	0x5A,	0x5A,	0x5A,	0x7E,	0x3C,	0x00 // DIFICIL(3)
+  0x00,    0x40,    0x44,    0x7E,    0x7E,    0x40,    0x40,    0x00, // FACIL(1)
+  0x00,    0x66,    0x76,    0x7E,    0x5E,    0x4C,    0x00,    0x00, // NORMAL(2)
+  0x00,    0x5A,    0x5A,    0x5A,    0x5A,    0x7E,    0x3C,    0x00  // DIFICIL(3)
 };
-
 
 unsigned char COLUMNAS[8] = {1, 2, 4, 8, 16, 32, 64, 128};
 
@@ -66,8 +66,25 @@ void mostrarGameOver(void);
 void mostrarPantallaInicio(void);
 void mostrarMapaEnMatriz(void);
 void generarObstaculos(void);
+void enviarComandoAudio(unsigned char comando); // <-- INTEGRADA: Control de Audio
 
 // ========== IMPLEMENTACIÓN DE FUNCIONES ==========
+
+// Función integrada para controlar la comunicación paralela hacia el PIC
+void enviarComandoAudio(unsigned char comando) {
+    // Usaremos PC4 y PC5 para enviar los datos en binario al PIC:
+    // Comando 0x00 (Silencio) -> PC5=0, PC4=0
+    // Comando 0x01 (Música)   -> PC5=0, PC4=1
+    // Comando 0x02 (Comida)    -> PC5=1, PC4=0
+    // Comando 0x03 (Muerte)   -> PC5=1, PC4=1
+    
+    // Limpiamos los bits PC4 y PC5 sin alterar los botones de PC0-PC3
+    PORTC &= ~((1 << PC4) | (1 << PC5));
+    
+    // Asignamos el valor del comando a los pines correspondientes
+    if (comando & 0x01) PORTC |= (1 << PC4);
+    if (comando & 0x02) PORTC |= (1 << PC5);
+}
 
 void inicializarJuego(void) {
     serpienteX[0] = 4; serpienteY[0] = 4;  // cabeza
@@ -113,33 +130,25 @@ void generarComida(void) {
         comidaX = espaciosVacios[seleccion][1];
         mapa[comidaY][comidaX] = 2;
     } else {
-        // No hay espacios vacíos = VICTORIA
+        // No hay espacios vacíos = VICTORIA / TERMINADO
         juegoTerminado = 1;
     }
 }
 
 void generarObstaculos(void) {
-
-    int cantidad = 1+(rand() % 3); // entre 1 y 3 obstáculos
-
-    int longitud = 2 + (rand() % 2); // tamaño de 2 o 3
+    int cantidad = 1 + (rand() % 3);   // entre 1 y 3 obstáculos
+    int longitud = 2 + (rand() % 2);   // tamaño de 2 o 3
 
     for(int obs = 0; obs < cantidad; obs++) {
-
         int colocado = 0;
-
         while(!colocado) {
-
             int x = rand() % 8;
             int y = rand() % 8;
-
             int orientacion = rand() % 2; // 0=horizontal, 1=vertical
-
             int valido = 1;
 
             // Verificar si cabe
             for(int i = 0; i < longitud; i++) {
-
                 int nx = x;
                 int ny = y;
 
@@ -147,6 +156,7 @@ void generarObstaculos(void) {
                     nx += i;
                 else
                     ny += i;
+                
                 // Sale del tablero
                 if(nx >= 8 || ny >= 8) {
                     valido = 0;
@@ -156,13 +166,10 @@ void generarObstaculos(void) {
                 // Revisar alrededor (incluyendo diagonales)
                 for(int dy = -1; dy <= 1; dy++) {
                     for(int dx = -1; dx <= 1; dx++) {
-
                         int rx = nx + dx;
                         int ry = ny + dy;
 
-                        if(rx >= 0 && rx < 8 &&
-                           ry >= 0 && ry < 8) {
-
+                        if(rx >= 0 && rx < 8 && ry >= 0 && ry < 8) {
                             if(mapa[ry][rx] != 0) {
                                 valido = 0;
                             }
@@ -176,9 +183,7 @@ void generarObstaculos(void) {
 
             // Colocar obstáculo
             if(valido) {
-
                 for(int i = 0; i < longitud; i++) {
-
                     int nx = x;
                     int ny = y;
 
@@ -189,7 +194,6 @@ void generarObstaculos(void) {
 
                     mapa[ny][nx] = 3;
                 }
-
                 colocado = 1;
             }
         }
@@ -234,14 +238,14 @@ int moverSerpiente(void) {
         case 3: nuevaX++; break;
     }
     
-    // Colisión con pared
+    // Colisión con pared según nivel de dificultad
     if(dificultad != 1) {
-    // MODOS NORMAL Y DIFÍCIL: muere en bordes
-    if(nuevaX < 0 || nuevaX >= 8 || nuevaY < 0 || nuevaY >= 8)
-        return 0;
+        // MODOS NORMAL Y DIFÍCIL: muere al tocar los bordes
+        if(nuevaX < 0 || nuevaX >= 8 || nuevaY < 0 || nuevaY >= 8)
+            return 0;
     }
     else {
-        // MODO FACIL: puede teletransportarse por bordes
+        // MODO FACIL: puede atravesar paredes (teletransportarse)
         if(nuevaX < 0) nuevaX = 7;
         else if(nuevaX >= 8) nuevaX = 0;
         if(nuevaY < 0) nuevaY = 7;
@@ -254,7 +258,7 @@ int moverSerpiente(void) {
 
     int comio = (nuevaX == comidaX && nuevaY == comidaY);
     
-    // Verificar colisión con cuerpo
+    // Verificar colisión con el propio cuerpo
     if(!primerMovimiento) {
         for(int i = 1; i < largo; i++) {
             if(serpienteX[i] == nuevaX && serpienteY[i] == nuevaY) {
@@ -279,22 +283,27 @@ int moverSerpiente(void) {
     // Colocar nueva cabeza
     serpienteX[0] = nuevaX;
     serpienteY[0] = nuevaY;
-    
-    // Dibujar nueva cabeza
     mapa[nuevaY][nuevaX] = 1;
     
     primerMovimiento = 0;
     
-    // Si comió, aumentar largo y generar comida
+    // Si comió, aumentar largo, sonar buzzer y generar comida nueva
     if(comio) {
         largo++;
+        
+        // INTERFAZ DE SONIDO: Envía pulso seguro al PIC y actualiza la matriz simultáneamente
+        enviarComandoAudio(0x02); 
+        for(int i = 0; i < 4; i++) {
+            mostrarMapaEnMatriz();
+        }
+        
         generarComida();  // Asegurar que se llama después de aumentar largo
     }
     
     return 1;
 }
 
-//Muestra solo el mapa del juego
+// Muestra el mapa completo del juego (Cuerpo, Fruta, Obstáculos)
 void mostrarMapaEnMatriz(void) {
     for(int col = 0; col < 8; col++) {
         PORTD = COLUMNAS[col];
@@ -312,6 +321,8 @@ void mostrarMapaEnMatriz(void) {
 }
 
 void mostrarGameOver(void) {
+    enviarComandoAudio(0x03); // <-- INTEGRADA: Envía señal de muerte al PIC
+    
     // Parpadeo rápido 3 veces
     for(int rep = 0; rep < 3; rep++) {
         // Todo encendido
@@ -331,14 +342,14 @@ void mostrarGameOver(void) {
         _delay_ms(200);
     }
 }
-//dibuja la pantalla "estatica" del numero de la dificultad
+
+// Dibuja la pantalla estática con el número indicador del nivel
 void mostrar_dificultades(int dificultad) {
-  // MUESTRA # DIFICULTAD
   for (int j = 0; j < 8; j++) {
     PORTD = COLUMNAS[j];
     PORTB = ~difultades[(dificultad-1)*8 + j];
     _delay_ms(5); 
-    PORTB = 0xFF; // BORRADO DE FILA
+    PORTB = 0xFF; // Borrado de fila para evitar reflejos
   }
 }
 
@@ -365,7 +376,7 @@ void mostrarPantallaInicio(void) {
     static int contador = 0;
     
     // Mostrar scrolling "SNAKE"
-    for(int barrido = 0; barrido < 3; barrido++) {  // Reducido para no saturar
+    for(int barrido = 0; barrido < 3; barrido++) {  
         for(int j = 0; j < 8; j++) {
             PORTD = COLUMNAS[j];
             PORTB = ~SECUENCIA_SNAKE[(offset_x + j) % TAMANO_SNAKE];
@@ -382,88 +393,98 @@ void mostrarPantallaInicio(void) {
     }
 }
 
+// ========== PROGRAMA PRINCIPAL ==========
 int main(void) {
     int estado = 0;  // 0 = inicio, 1 = selección dificultad, 2 = juego
     int contadorMovimiento = 0;
 
-    // Configurar puertos
+    // Configurar puertos de salida gráfica
     DDRB = 0xFF;  // Filas - salida
     DDRD = 0xFF;  // Columnas - salida
     
-    // Configurar botones en PC0, PC1, PC2, PC3
-    DDRC &= ~((1<<PC0) | (1<<PC1) | (1<<PC2) | (1<<PC3));  // Todos como entrada
-    PORTC |= (1<<PC0) | (1<<PC1) | (1<<PC2) | (1<<PC3); 
+    // Configurar botones en PC0-PC3 como ENTRADAS, y PC4-PC5 como SALIDAS de audio al PIC
+    DDRC &= ~((1<<PC0) | (1<<PC1) | (1<<PC2) | (1<<PC3));  
+    DDRC |= (1<<PC4) | (1<<PC5); 
     
+    // Pull-up para los pulsadores de control
+    PORTC |= (1<<PC0) | (1<<PC1) | (1<<PC2) | (1<<PC3);  
+     
     inicializarJuego();
     generarComida();
 
     while(1) {
         if(estado == 0) {
+            enviarComandoAudio(0x00); // Silencio en el menú de inicio
             mostrarPantallaInicio();
+            
             if(leerBoton(PC0) || leerBoton(PC1) || leerBoton(PC2) || leerBoton(PC3)) {
                 estado = 1;
+                contadorTexto = 0;    // Reset del contador para el texto de dificultad
+                faseDificultad = 0;   // Inicia con el texto desplazándose
                 _delay_ms(500);
             }
         }
         else if(estado == 1) {
-        // FASE 0: TEXTO "DIFICULTAD"
-        if(faseDificultad == 0) {
-            mostrar_texto_dificultad();
-            contadorTexto++;
-            // después de un tiempo pasa a selección
-            if(contadorTexto > 200) {
-                faseDificultad = 1;
-            }
-        }
-        // FASE 1: SELECCIÓN DE DIFICULTAD
-        else {
-            mostrar_dificultades(dificultad);
-            // subir dificultad (PC3)
-            if(leerBoton(PC3)) {
-                if(dificultad < 3)
-                    dificultad++;
-            }
-            // bajar dificultad (PC2)
-            if(leerBoton(PC2)) {
-                if(dificultad > 1)
-                    dificultad--;
-            }
-            // confirmar (PC0)
-            if(leerBoton(PC0)) {
-                inicializarJuego();
-                // SOLO generar obstáculos si la dificultad es 3
-                if(dificultad == 3) {
-                    generarObstaculos();
+            enviarComandoAudio(0x00); // Silencio mientras se configura el nivel
+            
+            // FASE 0: TEXTO SCROLLING "DIFICULTAD"
+            if(faseDificultad == 0) {
+                mostrar_texto_dificultad();
+                contadorTexto++;
+                if(contadorTexto > 200) {
+                    faseDificultad = 1;
                 }
-                generarComida();
-                estado = 2;  // jugar
-                _delay_ms(300);
+            }
+            // FASE 1: MENÚ DE SELECCIÓN DE DIFICULTAD
+            else {
+                mostrar_dificultades(dificultad);
+                
+                // Subir nivel (PC3)
+                if(leerBoton(PC3)) {
+                    if(dificultad < 3)
+                        dificultad++;
+                }
+                // Bajar nivel (PC2)
+                if(leerBoton(PC2)) {
+                    if(dificultad > 1)
+                        dificultad--;
+                }
+                // Confirmar Selección e iniciar partida (PC0)
+                if(leerBoton(PC0)) {
+                    inicializarJuego();
+                    // SOLO genera obstáculos físicos en el nivel Difícil (Nivel 3)
+                    if(dificultad == 3) {
+                        generarObstaculos();
+                    }
+                    generarComida();
+                    estado = 2;  // Cambia a estado de Juego activo
+                    _delay_ms(300);
+                }
             }
         }
-    }
-        // ========== JUEGO ==========
+        // ========== LOGICA JUEGO ACTIVO ==========
         else if(estado == 2) {
-            // Leer botones para mover
+            enviarComandoAudio(0x01); // <-- INTEGRADA: Envío de música de fondo constante en juego
+            
             actualizarDireccion();
             contadorMovimiento++;
 
-            if(contadorMovimiento  >= 25) {  // Ajusta este valor (mayor = más lento)
+            // El regulador de avance no interrumpe el refresco dinámico de la matriz
+            if(contadorMovimiento >= 25) {  
                 if(!moverSerpiente()) {
                     juegoTerminado = 1;
                 }
                 contadorMovimiento = 0;
             }
             
-            // Mostrar el juego en la matriz
             mostrarMapaEnMatriz();
             
-            // ========== GAME OVER ==========
+            // ========== MANEJO GAME OVER ==========
             if(juegoTerminado) {
                 mostrarGameOver();
                 _delay_ms(1500);
                 
-                // Esperar confirmación para reiniciar
-                estado = 0;  // Vuelve a pantalla de inicio
+                estado = 0;  // Vuelve suavemente a la pantalla de inicio ("SNAKE")
                 inicializarJuego();
                 generarComida();
                 juegoTerminado = 0;
