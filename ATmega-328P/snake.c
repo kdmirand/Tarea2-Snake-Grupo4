@@ -4,6 +4,7 @@
 #include <util/delay.h>
 
 #define TAMANO_SNAKE 48
+#define tamnio_dificultades 24
 
 // ========== VARIABLES GLOBALES ==========
 int serpienteX[64];
@@ -14,6 +15,11 @@ int comidaX, comidaY;
 int juegoTerminado = 0;
 int mapa[8][8];
 int primerMovimiento = 1;
+int faseDificultad = 0;   // 0 = texto, 1 = selección
+int dificultad = 1;       // por defecto fácil
+int contadorTexto = 0;
+int offset_x_dificultad = 0;
+int contador_dificultad = 0;
 
 // ARREGLO PALABRA SNAKE
 unsigned char SECUENCIA_SNAKE[TAMANO_SNAKE] = {
@@ -24,6 +30,28 @@ unsigned char SECUENCIA_SNAKE[TAMANO_SNAKE] = {
   0x00, 0x7E, 0x52, 0x52, 0x52, 0x52, 0x00, 0x00, // E
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  // ESPACIO
 };
+//Areglo para mostrar la palabra "DIFICULTAD" en la pantalla de selección de dificultad
+unsigned char texto_dificultad[88]  ={
+    0x00, 0x7E,	0x7E, 0x42,	0x42, 0x7E,	0x3C, 0x00, // D
+    0x00, 0x42,	0x42, 0x7E,	0x7E, 0x42,	0x42, 0x00, // I
+    0x00, 0x7E,	0x7E, 0x12,	0x12, 0x02,	0x02, 0x00, // F
+    0x00, 0x42,	0x42, 0x7E,	0x7E, 0x42,	0x42, 0x00, // I
+    0x00, 0x3C,	0x7E, 0x42,	0x42, 0x42,	0x24, 0x00, // C
+    0x00, 0x3E,	0x7E, 0x40,	0x40, 0x7E,	0x3E, 0x00, // U
+    0x00, 0x7E,	0x7E, 0x40,	0x40, 0x40,	0x40, 0x00, // L
+    0x00, 0x02,	0x02, 0x7E,	0x7E, 0x02,	0x02, 0x00, // T
+    0x00, 0x7C,	0x7E, 0x12,	0x12, 0x7E,	0x7C, 0x00, // A
+    0x00, 0x7E,	0x7E, 0x42,	0x42, 0x7E,	0x3C, 0x00, // D
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  // ESPACIO
+};
+
+// ARREGLO DIFICULTADES
+unsigned char difultades[tamnio_dificultades] = {
+  0x00,	0x40,	0x44,	0x7E,	0x7E,	0x40,	0x40,	0x00, // FACIL(1)
+  0x00,	0x66,	0x76,	0x7E,	0x5E,	0x4C,	0x00,	0x00, // NORMAL(2)
+  0x00,	0x5A,	0x5A,	0x5A,	0x5A,	0x7E,	0x3C,	0x00 // DIFICIL(3)
+};
+
 
 unsigned char COLUMNAS[8] = {1, 2, 4, 8, 16, 32, 64, 128};
 
@@ -37,6 +65,7 @@ void mostrarMatriz(void);
 void mostrarGameOver(void);
 void mostrarPantallaInicio(void);
 void mostrarMapaEnMatriz(void);
+void generarObstaculos(void);
 
 // ========== IMPLEMENTACIÓN DE FUNCIONES ==========
 
@@ -89,6 +118,84 @@ void generarComida(void) {
     }
 }
 
+void generarObstaculos(void) {
+
+    int cantidad = 1+(rand() % 3); // entre 1 y 3 obstáculos
+
+    int longitud = 2 + (rand() % 2); // tamaño de 2 o 3
+
+    for(int obs = 0; obs < cantidad; obs++) {
+
+        int colocado = 0;
+
+        while(!colocado) {
+
+            int x = rand() % 8;
+            int y = rand() % 8;
+
+            int orientacion = rand() % 2; // 0=horizontal, 1=vertical
+
+            int valido = 1;
+
+            // Verificar si cabe
+            for(int i = 0; i < longitud; i++) {
+
+                int nx = x;
+                int ny = y;
+
+                if(orientacion == 0)
+                    nx += i;
+                else
+                    ny += i;
+                // Sale del tablero
+                if(nx >= 8 || ny >= 8) {
+                    valido = 0;
+                    break;
+                }
+
+                // Revisar alrededor (incluyendo diagonales)
+                for(int dy = -1; dy <= 1; dy++) {
+                    for(int dx = -1; dx <= 1; dx++) {
+
+                        int rx = nx + dx;
+                        int ry = ny + dy;
+
+                        if(rx >= 0 && rx < 8 &&
+                           ry >= 0 && ry < 8) {
+
+                            if(mapa[ry][rx] != 0) {
+                                valido = 0;
+                            }
+                        }
+                    }
+                }
+
+                if(!valido)
+                    break;
+            }
+
+            // Colocar obstáculo
+            if(valido) {
+
+                for(int i = 0; i < longitud; i++) {
+
+                    int nx = x;
+                    int ny = y;
+
+                    if(orientacion == 0)
+                        nx += i;
+                    else
+                        ny += i;
+
+                    mapa[ny][nx] = 3;
+                }
+
+                colocado = 1;
+            }
+        }
+    }
+}
+
 int leerBoton(int pin) {
     if(!(PINC & (1 << pin))) {
         _delay_ms(50);
@@ -128,9 +235,23 @@ int moverSerpiente(void) {
     }
     
     // Colisión con pared
+    if(dificultad != 1) {
+    // MODOS NORMAL Y DIFÍCIL: muere en bordes
     if(nuevaX < 0 || nuevaX >= 8 || nuevaY < 0 || nuevaY >= 8)
         return 0;
+    }
+    else {
+        // MODO FACIL: puede teletransportarse por bordes
+        if(nuevaX < 0) nuevaX = 7;
+        else if(nuevaX >= 8) nuevaX = 0;
+        if(nuevaY < 0) nuevaY = 7;
+        else if(nuevaY >= 8) nuevaY = 0;
+    }
     
+    // Colisión con obstáculo
+    if(mapa[nuevaY][nuevaX] == 3)
+        return 0;
+
     int comio = (nuevaX == comidaX && nuevaY == comidaY);
     
     // Verificar colisión con cuerpo
@@ -180,7 +301,7 @@ void mostrarMapaEnMatriz(void) {
         
         unsigned char filaData = 0;
         for(int fila = 0; fila < 8; fila++) {
-            if(mapa[fila][col] == 1 || mapa[fila][col] == 2) {  // Serpiente O comida
+            if(mapa[fila][col] == 1 || mapa[fila][col] == 2 || mapa[fila][col] == 3) {  // Serpiente, comida u obstáculo
                 filaData |= (1 << fila);
             }
         }
@@ -210,6 +331,34 @@ void mostrarGameOver(void) {
         _delay_ms(200);
     }
 }
+//dibuja la pantalla "estatica" del numero de la dificultad
+void mostrar_dificultades(int dificultad) {
+  // MUESTRA # DIFICULTAD
+  for (int j = 0; j < 8; j++) {
+    PORTD = COLUMNAS[j];
+    PORTB = ~difultades[(dificultad-1)*8 + j];
+    _delay_ms(5); 
+    PORTB = 0xFF; // BORRADO DE FILA
+  }
+}
+
+void mostrar_texto_dificultad(void) {
+    for(int barrido = 0; barrido < 3; barrido++) {
+        for(int j = 0; j < 8; j++) {
+            PORTD = COLUMNAS[j];
+            PORTB = ~texto_dificultad[(offset_x_dificultad + j) % 88];
+            _delay_ms(5);
+            PORTB = 0xFF;
+        }
+    }
+    contador_dificultad++;
+    if(contador_dificultad > 2) {
+        contador_dificultad = 0;
+        offset_x_dificultad++;
+        if(offset_x_dificultad >= 88)
+            offset_x_dificultad = 0;
+    }
+}
 
 void mostrarPantallaInicio(void) {
     static int offset_x = 0;
@@ -234,9 +383,8 @@ void mostrarPantallaInicio(void) {
 }
 
 int main(void) {
-    int estado = 0;  // 0 = inicio, 1 = jugando
+    int estado = 0;  // 0 = inicio, 1 = selección dificultad, 2 = juego
     int contadorMovimiento = 0;
-
 
     // Configurar puertos
     DDRB = 0xFF;  // Filas - salida
@@ -246,28 +394,57 @@ int main(void) {
     DDRC &= ~((1<<PC0) | (1<<PC1) | (1<<PC2) | (1<<PC3));  // Todos como entrada
     PORTC |= (1<<PC0) | (1<<PC1) | (1<<PC2) | (1<<PC3); 
     
-     
     inicializarJuego();
     generarComida();
 
     while(1) {
         if(estado == 0) {
             mostrarPantallaInicio();
-            
             if(leerBoton(PC0) || leerBoton(PC1) || leerBoton(PC2) || leerBoton(PC3)) {
                 estado = 1;
-                inicializarJuego();
-                generarComida();
                 _delay_ms(500);
             }
         }
-        
-        // ========== JUEGO ==========
         else if(estado == 1) {
-            
+        // FASE 0: TEXTO "DIFICULTAD"
+        if(faseDificultad == 0) {
+            mostrar_texto_dificultad();
+            contadorTexto++;
+            // después de un tiempo pasa a selección
+            if(contadorTexto > 200) {
+                faseDificultad = 1;
+            }
+        }
+        // FASE 1: SELECCIÓN DE DIFICULTAD
+        else {
+            mostrar_dificultades(dificultad);
+            // subir dificultad (PC3)
+            if(leerBoton(PC3)) {
+                if(dificultad < 3)
+                    dificultad++;
+            }
+            // bajar dificultad (PC2)
+            if(leerBoton(PC2)) {
+                if(dificultad > 1)
+                    dificultad--;
+            }
+            // confirmar (PC0)
+            if(leerBoton(PC0)) {
+                inicializarJuego();
+                // SOLO generar obstáculos si la dificultad es 3
+                if(dificultad == 3) {
+                    generarObstaculos();
+                }
+                generarComida();
+                estado = 2;  // jugar
+                _delay_ms(300);
+            }
+        }
+    }
+        // ========== JUEGO ==========
+        else if(estado == 2) {
             // Leer botones para mover
             actualizarDireccion();
-            
             contadorMovimiento++;
 
             if(contadorMovimiento  >= 25) {  // Ajusta este valor (mayor = más lento)
