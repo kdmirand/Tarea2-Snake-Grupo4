@@ -9,11 +9,15 @@
 int serpienteX[64];
 int serpienteY[64];
 int largo = 3;
-int direccion = 2;  // 0=arriba, 1=abajo, 2=izq, 3=der
+int direccion = 2;  // 0=ARRIBA, 1=ABAJO, 2=IZQ, 3=DER
 int comidaX, comidaY;
 int juegoTerminado = 0;
 int mapa[8][8];
 int primerMovimiento = 1;
+
+// VARIABLES DE NIVELES
+int nivelActual = 1;
+int manzanasComidas = 0;
 
 // ARREGLO PALABRA SNAKE
 unsigned char SECUENCIA_SNAKE[TAMANO_SNAKE] = {
@@ -25,52 +29,92 @@ unsigned char SECUENCIA_SNAKE[TAMANO_SNAKE] = {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  // ESPACIO
 };
 
+// TEXTOS PARA CAMBIO DE NIVEL (L1, L2, L3)
+unsigned char TEXTO_L1[8] = {0x7F, 0x40, 0x40, 0x00, 0x42, 0x7F, 0x40, 0x00};
+unsigned char TEXTO_L2[8] = {0x7F, 0x40, 0x40, 0x00, 0x62, 0x51, 0x49, 0x46};
+unsigned char TEXTO_L3[8] = {0x7F, 0x40, 0x40, 0x00, 0x22, 0x41, 0x49, 0x36};
+
 unsigned char COLUMNAS[8] = {1, 2, 4, 8, 16, 32, 64, 128};
 
 // ========== DECLARACIÓN DE FUNCIONES ==========
-void inicializarJuego(void);
+void cargarNivel(int nivel);
+void inicializarJuego(int nivel);
 void generarComida(void);
-void generarObstaculos(int cantidadParedes); // NUEVA FUNCION PAREDES
 int leerBoton(int pin);
 void actualizarDireccion(void);
 int moverSerpiente(void);
-void mostrarMatriz(void);
-void mostrarGameOver(void);
-void mostrarPantallaInicio(void);
 void mostrarMapaEnMatriz(void);
+void mostrarGameOver(void);
+void mostrarVictoria(void);
+void mostrarPantallaInicio(void);
+void mostrarTransicion(int nivel);
 
 // ========== IMPLEMENTACIÓN DE FUNCIONES ==========
 
-void inicializarJuego(void) {
-    serpienteX[0] = 4; serpienteY[0] = 4;  // cabeza
-    serpienteX[1] = 3; serpienteY[1] = 4;
-    serpienteX[2] = 2; serpienteY[2] = 4;
+// FUNCION QUE DIBUJA LOS MAPAS SEGUN EL NIVEL
+void cargarNivel(int nivel) {
+    // NIVEL 1: MARCO EXTERIOR
+    if (nivel == 1) {
+        for(int i = 0; i < 8; i++) {
+            mapa[0][i] = 3; // PARED SUPERIOR
+            mapa[7][i] = 3; // PARED INFERIOR
+            mapa[i][0] = 3; // PARED IZQUIERDA
+            mapa[i][7] = 3; // PARED DERECHA
+        }
+    }
+    // NIVEL 2: 4 ESQUINAS DE 2X2 (DEJA UNA CRUZ LIBRE)
+    else if (nivel == 2) {
+        for(int i = 0; i < 2; i++) {
+            for(int j = 0; j < 2; j++) {
+                mapa[i][j] = 3;         // ESQUINA SUP-IZQ
+                mapa[i][j+6] = 3;       // ESQUINA SUP-DER
+                mapa[i+6][j] = 3;       // ESQUINA INF-IZQ
+                mapa[i+6][j+6] = 3;     // ESQUINA INF-DER
+            }
+        }
+    }
+    // NIVEL 3: BLOQUE CENTRAL DE 4X4 (DEJA PASILLO EXTERIOR)
+    else if (nivel == 3) {
+        for(int i = 2; i < 6; i++) {
+            for(int j = 2; j < 6; j++) {
+                mapa[i][j] = 3;
+            }
+        }
+    }
+}
+
+void inicializarJuego(int nivel) {
+    // NACIMIENTO EN PASILLO SUPERIOR (Y=1) PARA EVITAR CHOQUE CON MAPAS
+    serpienteX[0] = 4; serpienteY[0] = 1;  // CABEZA
+    serpienteX[1] = 3; serpienteY[1] = 1;
+    serpienteX[2] = 2; serpienteY[2] = 1;
     largo = 3;
-    direccion = 2;
+    direccion = 3; // INICIA HACIA LA DERECHA
     juegoTerminado = 0;
     primerMovimiento = 1;
+    manzanasComidas = 0; // REINICIO DE CONTADOR
 
-    // Limpiar mapa
+    // LIMPIAR MAPA
     for(int i = 0; i < 8; i++){
         for(int j = 0; j < 8; j++){
             mapa[i][j] = 0;
         }
     }
     
-    // Poner serpiente
+    // CARGAR MAPA DEL NIVEL
+    cargarNivel(nivel);
+    
+    // PONER SERPIENTE
     for(int i = 0; i < largo; i++){
         mapa[serpienteY[i]][serpienteX[i]] = 1;
     }
-    
-    // GENERAR 3 PAREDES DE PRUEBA (LUEGO SE CAMBIA SEGUN EL NIVEL)
-    generarObstaculos(3); 
 }
 
 void generarComida(void) {
     int espaciosVacios[64][2];
     int contador = 0;
     
-    // Buscar todas las celdas vacías
+    // BUSCAR CELDAS VACIAS (IGNORA LAS PAREDES QUE SON 3)
     for(int i = 0; i < 8; i++) {
         for(int j = 0; j < 8; j++) {
             if(mapa[i][j] == 0) {
@@ -82,46 +126,14 @@ void generarComida(void) {
     }
     
     if(contador > 0) {
-        // Elegir posición aleatoria
+        // ELEGIR POSICION ALEATORIA
         int seleccion = rand() % contador;
         comidaY = espaciosVacios[seleccion][0];
         comidaX = espaciosVacios[seleccion][1];
         mapa[comidaY][comidaX] = 2;
     } else {
-        // No hay espacios vacíos = VICTORIA
+        // NO HAY ESPACIOS VACIOS
         juegoTerminado = 1;
-    }
-}
-
-// GENERA PAREDES ALEATORIAS EN EL MAPA
-void generarObstaculos(int cantidadParedes) {
-    int espaciosVacios[64][2];
-    int contador = 0;
-    
-    // BUSCAR CELDAS VACIAS
-    for(int i = 0; i < 8; i++) {
-        for(int j = 0; j < 8; j++) {
-            if(mapa[i][j] == 0) {
-                espaciosVacios[contador][0] = i;
-                espaciosVacios[contador][1] = j;
-                contador++;
-            }
-        }
-    }
-    
-    // COLOCAR PAREDES (NUMERO 3)
-    for(int p = 0; p < cantidadParedes; p++) {
-        if(contador > 0) {
-            int seleccion = rand() % contador;
-            int paredY = espaciosVacios[seleccion][0];
-            int paredX = espaciosVacios[seleccion][1];
-            mapa[paredY][paredX] = 3; 
-            
-            // ELIMINAR ESPACIO USADO PARA NO REPETIR
-            espaciosVacios[seleccion][0] = espaciosVacios[contador-1][0];
-            espaciosVacios[seleccion][1] = espaciosVacios[contador-1][1];
-            contador--;
-        }
     }
 }
 
@@ -152,6 +164,7 @@ void actualizarDireccion(void) {
     }
 }
 
+// RETORNA: 0 = MUERTE, 1 = OK, 2 = PASA DE NIVEL
 int moverSerpiente(void) {
     int nuevaX = serpienteX[0];
     int nuevaY = serpienteY[0];
@@ -163,65 +176,62 @@ int moverSerpiente(void) {
         case 3: nuevaX++; break;
     }
     
-    // Colisión con pared exterior
-    if(nuevaX < 0 || nuevaX >= 8 || nuevaY < 0 || nuevaY >= 8)
-        return 0;
+    // COLISION CON BORDES EXTERIORES
+    if(nuevaX < 0 || nuevaX >= 8 || nuevaY < 0 || nuevaY >= 8) return 0;
         
-    // COLISION CON PAREDES INTERNAS (OBSTACULOS)
-    if(mapa[nuevaY][nuevaX] == 3) {
-        return 0; 
-    }
+    // COLISION CON PAREDES INTERNAS DEL MAPA (LOS 3)
+    if(mapa[nuevaY][nuevaX] == 3) return 0; 
     
     int comio = (nuevaX == comidaX && nuevaY == comidaY);
     
-    // Verificar colisión con cuerpo
+    // VERIFICAR COLISION CON CUERPO
     if(!primerMovimiento) {
         for(int i = 1; i < largo; i++) {
-            if(serpienteX[i] == nuevaX && serpienteY[i] == nuevaY) {
-                return 0;
-            }
+            if(serpienteX[i] == nuevaX && serpienteY[i] == nuevaY) return 0;
         }
     }
     
-    // Borrar cola solo si NO comió
+    // BORRAR COLA SI NO COMIO
     if(!comio) {
         int colaX = serpienteX[largo-1];
         int colaY = serpienteY[largo-1];
         mapa[colaY][colaX] = 0;
     }
     
-    // Mover cuerpo (desde el último hasta el primero)
+    // MOVER CUERPO
     for(int i = largo; i > 0; i--) {
         serpienteX[i] = serpienteX[i-1];
         serpienteY[i] = serpienteY[i-1];
     }
     
-    // Colocar nueva cabeza
+    // NUEVA CABEZA
     serpienteX[0] = nuevaX;
     serpienteY[0] = nuevaY;
-    
-    // Dibujar nueva cabeza
     mapa[nuevaY][nuevaX] = 1;
     
     primerMovimiento = 0;
     
-    // Si comió, aumentar largo y generar comida
+    // SI COMIO, CRECER Y VERIFICAR SI PASA DE NIVEL
     if(comio) {
         largo++;
-        generarComida();  // Asegurar que se llama después de aumentar largo
+        manzanasComidas++;
+        
+        // CONDICION: 3 MANZANAS PARA GANAR EL NIVEL
+        if(manzanasComidas >= 3) {
+            return 2; // CODIGO PARA SUBIR DE NIVEL
+        }
+        generarComida(); 
     }
     
-    return 1;
+    return 1; // MOVIMIENTO NORMAL
 }
 
-//Muestra solo el mapa del juego
 void mostrarMapaEnMatriz(void) {
     for(int col = 0; col < 8; col++) {
         PORTD = COLUMNAS[col];
-        
         unsigned char filaData = 0;
         for(int fila = 0; fila < 8; fila++) {
-            // SE AÑADIO EL NUMERO 3 (PARED) PARA QUE ENCIENDA EL LED
+            // ENCIENDE SI HAY SERPIENTE(1), COMIDA(2) O PARED(3)
             if(mapa[fila][col] == 1 || mapa[fila][col] == 2 || mapa[fila][col] == 3) {  
                 filaData |= (1 << fila);
             }
@@ -233,32 +243,35 @@ void mostrarMapaEnMatriz(void) {
 }
 
 void mostrarGameOver(void) {
-    // Parpadeo rápido 3 veces
+    // PARPADEO RAPIDO
     for(int rep = 0; rep < 3; rep++) {
-        // Todo encendido
         for(int col = 0; col < 8; col++) {
-            PORTD = COLUMNAS[col];
-            PORTB = 0x00;
-            _delay_ms(3);
+            PORTD = COLUMNAS[col]; PORTB = 0x00; _delay_ms(3);
         }
         _delay_ms(200);
-        
-        // Todo apagado
         for(int col = 0; col < 8; col++) {
-            PORTD = COLUMNAS[col];
-            PORTB = 0xFF;
-            _delay_ms(3);
+            PORTD = COLUMNAS[col]; PORTB = 0xFF; _delay_ms(3);
         }
         _delay_ms(200);
     }
+}
+
+void mostrarVictoria(void) {
+    // LLENADO LENTO INDICANDO QUE GANO TODO EL JUEGO
+    for(int i = 0; i < 8; i++) {
+        for(int col = 0; col < 8; col++) {
+            PORTD = COLUMNAS[col]; PORTB = ~(0xFF >> (7-i)); _delay_ms(3);
+        }
+        _delay_ms(150);
+    }
+    _delay_ms(1000);
 }
 
 void mostrarPantallaInicio(void) {
     static int offset_x = 0;
     static int contador = 0;
     
-    // Mostrar scrolling "SNAKE"
-    for(int barrido = 0; barrido < 3; barrido++) {  // Reducido para no saturar
+    for(int barrido = 0; barrido < 3; barrido++) {  
         for(int j = 0; j < 8; j++) {
             PORTD = COLUMNAS[j];
             PORTB = ~SECUENCIA_SNAKE[(offset_x + j) % TAMANO_SNAKE];
@@ -269,66 +282,102 @@ void mostrarPantallaInicio(void) {
     
     contador++;
     if(contador > 2) {
-        contador = 0;
-        offset_x++;
+        contador = 0; offset_x++;
         if(offset_x >= TAMANO_SNAKE) offset_x = 0;
     }
 }
 
-int main(void) {
-    int estado = 0;  // 0 = inicio, 1 = jugando
-    int contadorMovimiento = 0;
-
-    // Configurar puertos
-    DDRB = 0xFF;  // Filas - salida
-    DDRD = 0xFF;  // Columnas - salida
+// MUESTRA L1, L2 o L3
+void mostrarTransicion(int nivel) {
+    unsigned char* textoActual;
+    if (nivel == 1) textoActual = TEXTO_L1;
+    else if (nivel == 2) textoActual = TEXTO_L2;
+    else textoActual = TEXTO_L3;
     
-    // Configurar botones en PC0, PC1, PC2, PC3
-    DDRC &= ~((1<<PC0) | (1<<PC1) | (1<<PC2) | (1<<PC3));  // Todos como entrada
+    for(int tiempo = 0; tiempo < 150; tiempo++) {
+        for(int j = 0; j < 8; j++) {
+            PORTD = COLUMNAS[j];
+            PORTB = ~textoActual[j];
+            _delay_ms(2);
+            PORTB = 0xFF;
+        }
+    }
+}
+
+int main(void) {
+    int estado = 0;  // 0=INICIO, 1=TRANSICION, 2=JUGANDO
+    int contadorMovimiento = 0;
+    int velocidad = 25;
+
+    //setup
+    DDRB = 0xFF;  // FILAS 
+    DDRD = 0xFF;  // COLUMNAS 
+    
+    // ENTRADAS BOTONES
+    DDRC &= ~((1<<PC0) | (1<<PC1) | (1<<PC2) | (1<<PC3));  
     PORTC |= (1<<PC0) | (1<<PC1) | (1<<PC2) | (1<<PC3); 
     
-    inicializarJuego();
-    generarComida();
-
     while(1) {
+        //loop
+        
+        // ========== MENU ==========
         if(estado == 0) {
             mostrarPantallaInicio();
             
             if(leerBoton(PC0) || leerBoton(PC1) || leerBoton(PC2) || leerBoton(PC3)) {
-                estado = 1;
-                inicializarJuego();
-                generarComida();
+                nivelActual = 1;
+                estado = 1; // PASAR A TRANSICION
                 _delay_ms(500);
             }
         }
         
-        // ========== JUEGO ==========
+        // ========== TRANSICION (L1, L2, L3) ==========
         else if(estado == 1) {
+            mostrarTransicion(nivelActual);
             
-            // Leer botones para mover
+            // AJUSTE DE VELOCIDAD POR NIVEL (DIFICULTAD DINAMICA)
+            if(nivelActual == 1) velocidad = 25; // LENTO
+            if(nivelActual == 2) velocidad = 15; // MEDIO
+            if(nivelActual == 3) velocidad = 8;  // RAPIDO
+            
+            inicializarJuego(nivelActual);
+            generarComida();
+            estado = 2; // PASAR A JUGAR
+        }
+        
+        // ========== JUEGO ==========
+        else if(estado == 2) {
+            
             actualizarDireccion();
-            
             contadorMovimiento++;
 
-            if(contadorMovimiento  >= 25) {  // Ajusta este valor (mayor = más lento)
-                if(!moverSerpiente()) {
+            if(contadorMovimiento >= velocidad) {  
+                int resultado = moverSerpiente();
+                
+                // CHOQUE
+                if(resultado == 0) {
                     juegoTerminado = 1;
+                }
+                // PASO DE NIVEL
+                else if(resultado == 2) {
+                    nivelActual++;
+                    if(nivelActual > 3) {
+                        mostrarVictoria();
+                        estado = 0; // REGRESA AL MENU SI GANO TODO
+                    } else {
+                        estado = 1; // MUESTRA LA SIGUIENTE TRANSICION
+                    }
                 }
                 contadorMovimiento = 0;
             }
             
-            // Mostrar el juego en la matriz
             mostrarMapaEnMatriz();
             
-            // ========== GAME OVER ==========
+            // GAME OVER
             if(juegoTerminado) {
                 mostrarGameOver();
                 _delay_ms(1500);
-                
-                // Esperar confirmación para reiniciar
-                estado = 0;  // Vuelve a pantalla de inicio
-                inicializarJuego();
-                generarComida();
+                estado = 0;  // VUELVE A INICIO
                 juegoTerminado = 0;
                 _delay_ms(500);
             }
