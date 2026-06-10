@@ -48,8 +48,24 @@ void mostrarGameOver(void);
 void mostrarVictoria(void);
 void mostrarPantallaInicio(void);
 void mostrarTransicion(int nivel);
+void enviarComandoAudio(unsigned char comando); // <-- REINTEGRADA
 
 // ========== IMPLEMENTACIÓN DE FUNCIONES ==========
+
+// Función para controlar la comunicación paralela hacia el PIC
+void enviarComandoAudio(unsigned char comando) {
+    // Comando 0x00 (Silencio) -> PC5=0, PC4=0
+    // Comando 0x01 (Música)   -> PC5=0, PC4=1
+    // Comando 0x02 (Comida)    -> PC5=1, PC4=0
+    // Comando 0x03 (Muerte)   -> PC5=1, PC4=1
+    
+    // Limpiamos los bits PC4 y PC5 sin alterar los botones de PC0-PC3
+    PORTC &= ~((1 << PC4) | (1 << PC5));
+    
+    // Asignamos el valor del comando a los pines correspondientes
+    if (comando & 0x01) PORTC |= (1 << PC4);
+    if (comando & 0x02) PORTC |= (1 << PC5);
+}
 
 // FUNCION QUE DIBUJA LOS MAPAS SEGUN EL NIVEL
 void cargarNivel(int nivel) {
@@ -216,6 +232,12 @@ int moverSerpiente(void) {
         largo++;
         manzanasComidas++;
         
+        // REINTEGRADO: Avisar al PIC que comió y sostener el renderizado para no apagar la matriz
+        enviarComandoAudio(0x02); 
+        for(int i = 0; i < 4; i++) {
+            mostrarMapaEnMatriz();
+        }
+        
         // CONDICION: 3 MANZANAS PARA GANAR EL NIVEL
         if(manzanasComidas >= 3) {
             return 2; // CODIGO PARA SUBIR DE NIVEL
@@ -243,6 +265,8 @@ void mostrarMapaEnMatriz(void) {
 }
 
 void mostrarGameOver(void) {
+    enviarComandoAudio(0x03); // <-- REINTEGRADA: Avisar al PIC la muerte
+    
     // PARPADEO RAPIDO
     for(int rep = 0; rep < 3; rep++) {
         for(int col = 0; col < 8; col++) {
@@ -257,6 +281,7 @@ void mostrarGameOver(void) {
 }
 
 void mostrarVictoria(void) {
+    enviarComandoAudio(0x00); // Silencio al ganar
     // LLENADO LENTO INDICANDO QUE GANO TODO EL JUEGO
     for(int i = 0; i < 8; i++) {
         for(int col = 0; col < 8; col++) {
@@ -313,8 +338,10 @@ int main(void) {
     DDRB = 0xFF;  // FILAS 
     DDRD = 0xFF;  // COLUMNAS 
     
-    // ENTRADAS BOTONES
+    // CONFIGURACIÓN REINTEGRADA: Botones como entradas (PC0-PC3), Pines de audio como salidas (PC4-PC5)
     DDRC &= ~((1<<PC0) | (1<<PC1) | (1<<PC2) | (1<<PC3));  
+    DDRC |= (1<<PC4) | (1<<PC5);
+    
     PORTC |= (1<<PC0) | (1<<PC1) | (1<<PC2) | (1<<PC3); 
     
     while(1) {
@@ -322,6 +349,7 @@ int main(void) {
         
         // ========== MENU ==========
         if(estado == 0) {
+            enviarComandoAudio(0x00); // REINTEGRADA: Silencio en menú de inicio
             mostrarPantallaInicio();
             
             if(leerBoton(PC0) || leerBoton(PC1) || leerBoton(PC2) || leerBoton(PC3)) {
@@ -333,6 +361,7 @@ int main(void) {
         
         // ========== TRANSICION (L1, L2, L3) ==========
         else if(estado == 1) {
+            enviarComandoAudio(0x00); // REINTEGRADA: Silencio durante pantallas de transición ("L1"...)
             mostrarTransicion(nivelActual);
             
             // AJUSTE DE VELOCIDAD POR NIVEL (DIFICULTAD DINAMICA)
@@ -347,6 +376,7 @@ int main(void) {
         
         // ========== JUEGO ==========
         else if(estado == 2) {
+            enviarComandoAudio(0x01); // REINTEGRADA: Música de fondo activa en partida
             
             actualizarDireccion();
             contadorMovimiento++;
